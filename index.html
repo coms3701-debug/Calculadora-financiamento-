@@ -5,9 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calculadora de Financiamento</title>
 
+  <!-- Descrição (aparece em busca e compartilhamento) -->
+  <meta name="description" content="Calculadora de financiamento com juros compostos. Calcule valor presente, valor final, índice mensal ou número de parcelas.">
+
+  <!-- Favicon (ícone na aba do navegador) -->
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
   <!-- PWA: manifest e cor da barra -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#ff7900">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a1a">
+
+  <!-- Compartilhamento (WhatsApp, Slack, etc) -->
+  <meta property="og:title" content="Calculadora de Financiamento">
+  <meta property="og:description" content="Calcule juros compostos: valor presente, valor final, índice mensal ou número de parcelas.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="icons/icon-512.png">
+  <meta name="twitter:card" content="summary">
 
   <style>
     * {
@@ -147,6 +162,64 @@
       font-size: 12px;
       line-height: 1.5;
     }
+
+    /* Botão "Instalar app" — escondido até o navegador permitir */
+    .instalar {
+      display: none;
+      margin-top: 12px;
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      color: #ff7900;
+      border: 2px solid #ff7900;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .instalar.visivel {
+      display: block;
+    }
+
+    /* Modo escuro automático — segue o sistema do usuário */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1a1a1a;
+        color: #e8e8e8;
+      }
+      .container {
+        background: #2a2a2a;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+      }
+      .subtitulo {
+        color: #aaa;
+      }
+      .campo {
+        border-color: #444;
+        background: #333;
+      }
+      .prefixo,
+      .sufixo {
+        background: #3a3a3a;
+        color: #bbb;
+      }
+      input {
+        background: #333;
+        color: #e8e8e8;
+      }
+      input.auto {
+        background: #4a3520;
+        color: #ffb066;
+      }
+      .resultado {
+        background: #3a2a18;
+        color: #ffb066;
+      }
+      .obs {
+        color: #999;
+      }
+    }
   </style>
 </head>
 
@@ -196,6 +269,8 @@
       <button class="calcular" onclick="calcular()">Calcular</button>
       <button class="limpar" onclick="limparTudo()">Limpar</button>
     </div>
+
+    <button id="botaoInstalar" class="instalar" onclick="instalarApp()">📱 Instalar como app</button>
 
     <div class="obs">
       Fórmula usada:<br>
@@ -437,6 +512,34 @@
       limparMarcacoes();
       esconderResultado();
     }
+  </script>
+
+  <!-- PWA: botão "Instalar como app" -->
+  <script>
+    let promptInstalar = null;
+    const botaoInstalar = document.getElementById('botaoInstalar');
+
+    // Quando o navegador permite instalar, guardamos o prompt e mostramos o botão
+    window.addEventListener('beforeinstallprompt', (evento) => {
+      evento.preventDefault();
+      promptInstalar = evento;
+      botaoInstalar.classList.add('visivel');
+    });
+
+    function instalarApp() {
+      if (!promptInstalar) return;
+      promptInstalar.prompt();
+      promptInstalar.userChoice.then(() => {
+        promptInstalar = null;
+        botaoInstalar.classList.remove('visivel');
+      });
+    }
+
+    // Esconde o botão depois que o app foi instalado
+    window.addEventListener('appinstalled', () => {
+      botaoInstalar.classList.remove('visivel');
+      promptInstalar = null;
+    });
   </script>
 
   <!-- PWA: registra o service worker para funcionar offline -->
