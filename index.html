@@ -6,11 +6,11 @@
   <title>Calculadora de Financiamento</title>
 
   <!-- Descrição (aparece em busca e compartilhamento) -->
-  <meta name="description" content="Calculadora de financiamento com juros compostos. Calcule valor presente, valor final, índice mensal ou número de parcelas.">
+  <meta name="description" content="Calculadora de financiamento PRICE. Calcule valor financiado, parcela mensal, índice ou número de parcelas, total a pagar e juros.">
 
   <!-- Favicon (ícone na aba do navegador) -->
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
 
   <!-- PWA: manifest e cor da barra -->
   <link rel="manifest" href="manifest.json">
@@ -19,9 +19,9 @@
 
   <!-- Compartilhamento (WhatsApp, Slack, etc) -->
   <meta property="og:title" content="Calculadora de Financiamento">
-  <meta property="og:description" content="Calcule juros compostos: valor presente, valor final, índice mensal ou número de parcelas.">
+  <meta property="og:description" content="Calcule parcela mensal, valor financiado, índice ou prazo. Veja também total a pagar e juros.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="icons/icon-512.png">
+  <meta property="og:image" content="icon-512.png">
   <meta name="twitter:card" content="summary">
 
   <style>
@@ -233,10 +233,10 @@
     </div>
 
     <div class="grupo">
-      <label for="valorPresente">Valor presente</label>
+      <label for="valorFinanciado">Valor financiado</label>
       <div class="campo">
         <span class="prefixo">R$</span>
-        <input id="valorPresente" class="dinheiro" type="text" inputmode="decimal" placeholder="0,00">
+        <input id="valorFinanciado" class="dinheiro" type="text" inputmode="decimal" placeholder="0,00">
       </div>
     </div>
 
@@ -256,10 +256,10 @@
     </div>
 
     <div class="grupo">
-      <label for="valorFinal">Valor final</label>
+      <label for="valorParcela">Valor da parcela</label>
       <div class="campo">
         <span class="prefixo">R$</span>
-        <input id="valorFinal" class="dinheiro" type="text" inputmode="decimal" placeholder="0,00">
+        <input id="valorParcela" class="dinheiro" type="text" inputmode="decimal" placeholder="0,00">
       </div>
     </div>
 
@@ -273,8 +273,8 @@
     <button id="botaoInstalar" class="instalar" onclick="instalarApp()">📱 Instalar como app</button>
 
     <div class="obs">
-      Fórmula usada:<br>
-      <strong>Valor Final = Valor Presente × (1 + Índice) ^ Parcelas</strong><br><br>
+      Fórmula usada (Tabela PRICE — parcelas fixas):<br>
+      <strong>Parcela = Valor financiado × Índice ÷ (1 − (1 + Índice)<sup>−Parcelas</sup>)</strong><br><br>
       Para calcular um campo, deixe ele vazio e preencha os outros 3.
     </div>
   </div>
@@ -282,13 +282,13 @@
   <script>
     let ultimoCampoCalculado = null;
 
-    const valorPresente = document.getElementById("valorPresente");
+    const valorFinanciado = document.getElementById("valorFinanciado");
     const indice = document.getElementById("indice");
     const parcelas = document.getElementById("parcelas");
-    const valorFinal = document.getElementById("valorFinal");
+    const valorParcela = document.getElementById("valorParcela");
     const resultado = document.getElementById("resultado");
 
-    const campos = [valorPresente, indice, parcelas, valorFinal];
+    const campos = [valorFinanciado, indice, parcelas, valorParcela];
 
     campos.forEach(campo => {
       campo.addEventListener("input", () => {
@@ -419,19 +419,69 @@
       resultado.style.display = "none";
     }
 
+    // ===== Fórmulas da Tabela PRICE =====
+    // PMT = VP * i / (1 - (1+i)^-n)
+    // VP = PMT * (1 - (1+i)^-n) / i
+    // n  = -log(1 - VP*i/PMT) / log(1+i)
+    // i  = sem fórmula fechada → Newton-Raphson
+
+    function calcParcela(vp, i, n) {
+      if (i === 0) return vp / n;
+      return vp * i / (1 - Math.pow(1 + i, -n));
+    }
+
+    function calcValorFinanciado(pmt, i, n) {
+      if (i === 0) return pmt * n;
+      return pmt * (1 - Math.pow(1 + i, -n)) / i;
+    }
+
+    function calcNumeroParcelas(vp, pmt, i) {
+      if (i === 0) return vp / pmt;
+      const arg = 1 - (vp * i) / pmt;
+      if (arg <= 0) return null; // parcela baixa demais — financiamento não amortiza
+      return -Math.log(arg) / Math.log(1 + i);
+    }
+
+    function calcIndice(vp, pmt, n) {
+      // Verificações iniciais
+      if (pmt * n <= vp) return null;       // sem juros possíveis (ou pmt insuficiente)
+      if (pmt <= 0 || vp <= 0 || n <= 0) return null;
+
+      // Função a zerar: f(i) = vp*i/(1-(1+i)^-n) - pmt
+      const f = (i) => calcParcela(vp, i, n) - pmt;
+
+      // Newton-Raphson com derivada numérica + bisseção de segurança
+      let i = ((pmt * n) / vp - 1) / n; // chute inicial razoável
+      if (i <= 0) i = 0.01;
+
+      for (let iter = 0; iter < 200; iter++) {
+        const fi = f(i);
+        if (Math.abs(fi) < 1e-10) return i;
+
+        const h = Math.max(i * 1e-6, 1e-8);
+        const df = (f(i + h) - fi) / h;
+        if (df === 0) break;
+
+        let novo = i - fi / df;
+        if (novo <= 0) novo = i / 2; // bisseção pra não ir pra negativo
+        i = novo;
+      }
+      return i;
+    }
+
     function calcular() {
       limparMarcacoes();
 
-      const vp = lerDinheiro(valorPresente.value);
-      const tx = lerNumero(indice.value);
-      const n = lerNumero(parcelas.value);
-      const vf = lerDinheiro(valorFinal.value);
+      const vp  = lerDinheiro(valorFinanciado.value);
+      const tx  = lerNumero(indice.value);
+      const n   = lerNumero(parcelas.value);
+      const pmt = lerDinheiro(valorParcela.value);
 
       const valores = {
-        valorPresente: vp,
+        valorFinanciado: vp,
         indice: tx,
         parcelas: n,
-        valorFinal: vf
+        valorParcela: pmt
       };
 
       const vazios = Object.keys(valores).filter(campo => valores[campo] === null);
@@ -455,47 +505,61 @@
       const taxa = tx !== null ? tx / 100 : null;
 
       try {
-        if (campoParaCalcular === "valorFinal") {
+        if (campoParaCalcular === "valorParcela") {
           if (vp === null || taxa === null || n === null) return;
-
-          const calculado = vp * Math.pow(1 + taxa, n);
-
-          preencherCampo(valorFinal, formatarMoeda(calculado));
-          mostrarResultado("Valor final calculado: R$ " + formatarMoeda(calculado));
-        }
-
-        if (campoParaCalcular === "valorPresente") {
-          if (vf === null || taxa === null || n === null) return;
-
-          const calculado = vf / Math.pow(1 + taxa, n);
-
-          preencherCampo(valorPresente, formatarMoeda(calculado));
-          mostrarResultado("Valor presente calculado: R$ " + formatarMoeda(calculado));
-        }
-
-        if (campoParaCalcular === "indice") {
-          if (vp === null || vf === null || n === null || vp <= 0 || vf <= 0 || n <= 0) {
-            mostrarResultado("Para calcular o índice, os outros valores precisam ser maiores que zero.");
+          if (vp <= 0 || n <= 0 || taxa < 0) {
+            mostrarResultado("Valor financiado, número de parcelas e índice precisam ser válidos.");
             return;
           }
 
-          const calculado = Math.pow(vf / vp, 1 / n) - 1;
-          const percentual = calculado * 100;
+          const pmtCalc = calcParcela(vp, taxa, n);
+          preencherCampo(valorParcela, formatarMoeda(pmtCalc));
+          mostrarResumo(vp, pmtCalc, n, "Parcela mensal calculada");
+        }
 
-          preencherCampo(indice, formatarNumero(percentual, 2, 4));
-          mostrarResultado("Índice calculado: " + formatarNumero(percentual, 2, 4) + "% ao mês");
+        if (campoParaCalcular === "valorFinanciado") {
+          if (pmt === null || taxa === null || n === null) return;
+          if (pmt <= 0 || n <= 0 || taxa < 0) {
+            mostrarResultado("Parcela, número de parcelas e índice precisam ser válidos.");
+            return;
+          }
+
+          const vpCalc = calcValorFinanciado(pmt, taxa, n);
+          preencherCampo(valorFinanciado, formatarMoeda(vpCalc));
+          mostrarResumo(vpCalc, pmt, n, "Valor financiado calculado");
         }
 
         if (campoParaCalcular === "parcelas") {
-          if (vp === null || vf === null || taxa === null || vp <= 0 || vf <= 0 || taxa <= 0) {
-            mostrarResultado("Para calcular parcelas, os outros valores precisam ser válidos.");
+          if (vp === null || pmt === null || taxa === null) return;
+          if (vp <= 0 || pmt <= 0 || taxa < 0) {
+            mostrarResultado("Valor financiado, parcela e índice precisam ser válidos.");
             return;
           }
 
-          const calculado = Math.log(vf / vp) / Math.log(1 + taxa);
+          const nCalc = calcNumeroParcelas(vp, pmt, taxa);
+          if (nCalc === null || !isFinite(nCalc)) {
+            mostrarResultado("Com essa parcela e esse índice, o financiamento não termina. Aumente a parcela.");
+            return;
+          }
+          preencherCampo(parcelas, formatarNumero(nCalc, 2, 2));
+          mostrarResumo(vp, pmt, nCalc, "Número de parcelas calculado");
+        }
 
-          preencherCampo(parcelas, formatarNumero(calculado, 2, 2));
-          mostrarResultado("Número de parcelas calculado: " + formatarNumero(calculado, 2, 2));
+        if (campoParaCalcular === "indice") {
+          if (vp === null || pmt === null || n === null) return;
+          if (vp <= 0 || pmt <= 0 || n <= 0) {
+            mostrarResultado("Valor financiado, parcela e número de parcelas precisam ser maiores que zero.");
+            return;
+          }
+
+          const iCalc = calcIndice(vp, pmt, n);
+          if (iCalc === null || !isFinite(iCalc)) {
+            mostrarResultado("Não foi possível calcular o índice. Confira se os valores fazem sentido (total pago precisa ser maior que o valor financiado).");
+            return;
+          }
+          const percentual = iCalc * 100;
+          preencherCampo(indice, formatarNumero(percentual, 2, 4));
+          mostrarResumo(vp, pmt, n, "Índice mensal calculado");
         }
 
       } catch (erro) {
@@ -503,11 +567,25 @@
       }
     }
 
+    // Mostra parcela + total a pagar + juros totais
+    function mostrarResumo(vp, pmt, n, titulo) {
+      const total = pmt * n;
+      const juros = total - vp;
+      mostrarResultado(
+        titulo + "<br>" +
+        "<span style='font-size:13px;font-weight:normal;'>" +
+        "Parcela: R$ " + formatarMoeda(pmt) + "<br>" +
+        "Total a pagar: R$ " + formatarMoeda(total) + "<br>" +
+        "Juros totais: R$ " + formatarMoeda(juros) +
+        "</span>"
+      );
+    }
+
     function limparTudo() {
-      valorPresente.value = "";
+      valorFinanciado.value = "";
       indice.value = "";
       parcelas.value = "";
-      valorFinal.value = "";
+      valorParcela.value = "";
       ultimoCampoCalculado = null;
       limparMarcacoes();
       esconderResultado();
