@@ -321,6 +321,9 @@
             campo.value = formatarNumero(numero, 2, 4);
           }
         }
+
+        // Quando o usuário sai do campo, dispara o cálculo automático
+        calcular();
       });
     });
 
@@ -493,9 +496,21 @@
 
       let campoParaCalcular = null;
 
+      // Não auto-preenche o campo onde o usuário está digitando agora
+      const focadoId = document.activeElement ? document.activeElement.id : null;
+
       if (vazios.length === 1) {
+        if (vazios[0] === focadoId) {
+          // Usuário está digitando neste campo, esperamos ele sair pra calcular
+          esconderResultado();
+          return;
+        }
         campoParaCalcular = vazios[0];
       } else if (vazios.length === 0 && ultimoCampoCalculado) {
+        if (ultimoCampoCalculado === focadoId) {
+          // Usuário está editando o campo que tinha sido auto-calculado, respeita
+          return;
+        }
         campoParaCalcular = ultimoCampoCalculado;
       } else {
         mostrarResultado("Para calcular automaticamente, deixe um campo vazio.");

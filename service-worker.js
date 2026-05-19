@@ -1,6 +1,6 @@
 // Service Worker — faz a calculadora funcionar offline
 // Quando atualizar o app, mude o número da versão abaixo (ex: v2, v3...)
-const CACHE_NOME = 'calc-financiamento-v3';
+const CACHE_NOME = 'calc-financiamento-v4';
 
 const ARQUIVOS_PARA_CACHE = [
   './',
