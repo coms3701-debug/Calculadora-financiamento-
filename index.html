@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Financiamento</title>
+
+  <!-- PWA: manifest e cor da barra -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff7900">
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f3f5f7;
+      color: #222;
+    }
+
+    .container {
+      max-width: 460px;
+      margin: 30px auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 20px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin: 0 0 8px 0;
+    }
+
+    .subtitulo {
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 24px;
+      line-height: 1.4;
+    }
+
+    .grupo {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .campo {
+      display: flex;
+      align-items: center;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .campo:focus-within {
+      border-color: #ff7900;
+      box-shadow: 0 0 0 2px rgba(255,121,0,0.18);
+    }
+
+    .prefixo,
+    .sufixo {
+      background: #f1f1f1;
+      padding: 14px 12px;
+      font-weight: bold;
+      color: #555;
+      min-width: 42px;
+      text-align: center;
+    }
+
+    input {
+      width: 100%;
+      border: none;
+      outline: none;
+      padding: 14px;
+      font-size: 18px;
+      background: #fff;
+    }
+
+    input.dinheiro {
+      text-align: right;
+    }
+
+    input.numero {
+      text-align: center;
+    }
+
+    input.auto {
+      background: #fff4e8;
+      color: #8a4300;
+      font-weight: bold;
+    }
+
+    .botoes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    button {
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .calcular {
+      background: #ff7900;
+      color: white;
+    }
+
+    .limpar {
+      background: #555;
+      color: white;
+    }
+
+    .resultado {
+      display: none;
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      background: #fff3e6;
+      color: #8a4300;
+      font-weight: bold;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .obs {
+      margin-top: 18px;
+      color: #777;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <h1>Calculadora de Financiamento</h1>
+
+    <div class="subtitulo">
+      Preencha 3 campos e deixe vazio o campo que deseja calcular.
+    </div>
+
+    <div class="grupo">
+      <label for="valorPresente">Valor presente</label>
+      <div class="campo">
+        <span class="prefixo">R$</span>
+        <input id="valorPresente" class="dinheiro" type="text" inputmode="decimal" placeholder="0,00">
+      </div>
+    </div>
+
+    <div class="grupo">
+      <label for="indice">Índice mensal</label>
+      <div class="campo">
+        <input id="indice" class="numero" type="text" inputmode="decimal" placeholder="1,10">
+        <span class="sufixo">%</span>
+      </div>
+    </div>
+
+    <div class="grupo">
+      <label for="parcelas">Número de parcelas</label>
+      <div class="campo">
+        <input id="parcelas" class="numero" type="text" inputmode="decimal" placeholder="30">
+      </div>
+    </div>
+
+    <div class="grupo">
+      <label for="valorFinal">Valor final</label>
+      <div class="campo">
+        <span class="prefixo">R$</span>
+        <input id="valorFinal" class="dinheiro" type="text" inputmode="decimal" placeholder="0,00">
+      </div>
+    </div>
+
+    <div id="resultado" class="resultado"></div>
+
+    <div class="botoes">
+      <button class="calcular" onclick="calcular()">Calcular</button>
+      <button class="limpar" onclick="limparTudo()">Limpar</button>
+    </div>
+
+    <div class="obs">
+      Fórmula usada:<br>
+      <strong>Valor Final = Valor Presente × (1 + Índice) ^ Parcelas</strong><br><br>
+      Para calcular um campo, deixe ele vazio e preencha os outros 3.
+    </div>
+  </div>
+
+  <script>
+    let ultimoCampoCalculado = null;
+
+    const valorPresente = document.getElementById("valorPresente");
+    const indice = document.getElementById("indice");
+    const parcelas = document.getElementById("parcelas");
+    const valorFinal = document.getElementById("valorFinal");
+    const resultado = document.getElementById("resultado");
+
+    const campos = [valorPresente, indice, parcelas, valorFinal];
+
+    campos.forEach(campo => {
+      campo.addEventListener("input", () => {
+        campo.classList.remove("auto");
+
+        if (campo.id === ultimoCampoCalculado) {
+          ultimoCampoCalculado = null;
+        }
+
+        if (campo.classList.contains("dinheiro")) {
+          formatarDigitacaoDinheiro(campo);
+        } else {
+          formatarDigitacaoNumero(campo);
+        }
+
+        calcular();
+      });
+
+      campo.addEventListener("blur", () => {
+        if (campo.classList.contains("dinheiro")) {
+          const numero = lerDinheiro(campo.value);
+          if (numero !== null) {
+            campo.value = formatarMoeda(numero);
+          }
+        }
+
+        if (campo.id === "indice") {
+          const numero = lerNumero(campo.value);
+          if (numero !== null) {
+            campo.value = formatarNumero(numero, 2, 4);
+          }
+        }
+      });
+    });
+
+    function formatarDigitacaoDinheiro(campo) {
+      let valor = campo.value;
+
+      valor = valor.replace(/[^\d,]/g, "");
+
+      let partes = valor.split(",");
+      let inteiro = partes[0].replace(/\D/g, "");
+      let decimal = partes[1] ? partes[1].replace(/\D/g, "").slice(0, 2) : "";
+
+      if (inteiro.length > 3) {
+        inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      }
+
+      if (valor.includes(",")) {
+        campo.value = inteiro + "," + decimal;
+      } else {
+        campo.value = inteiro;
+      }
+    }
+
+    function formatarDigitacaoNumero(campo) {
+      let valor = campo.value;
+      valor = valor.replace(/[^\d,]/g, "");
+
+      let partes = valor.split(",");
+      let inteiro = partes[0].replace(/\D/g, "");
+      let decimal = partes[1] ? partes[1].replace(/\D/g, "").slice(0, 4) : "";
+
+      if (valor.includes(",")) {
+        campo.value = inteiro + "," + decimal;
+      } else {
+        campo.value = inteiro;
+      }
+    }
+
+    function lerDinheiro(valor) {
+      if (!valor || valor.trim() === "") return null;
+
+      valor = valor
+        .replace(/\./g, "")
+        .replace(",", ".")
+        .trim();
+
+      const numero = parseFloat(valor);
+
+      return isNaN(numero) ? null : numero;
+    }
+
+    function lerNumero(valor) {
+      if (!valor || valor.trim() === "") return null;
+
+      valor = valor
+        .replace(/\./g, "")
+        .replace(",", ".")
+        .trim();
+
+      const numero = parseFloat(valor);
+
+      return isNaN(numero) ? null : numero;
+    }
+
+    function formatarMoeda(numero) {
+      return numero.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function formatarNumero(numero, min = 2, max = 4) {
+      return numero.toLocaleString("pt-BR", {
+        minimumFractionDigits: min,
+        maximumFractionDigits: max
+      });
+    }
+
+    function preencherCampo(campo, valor) {
+      campo.value = valor;
+      campo.classList.add("auto");
+      ultimoCampoCalculado = campo.id;
+    }
+
+    function limparMarcacoes() {
+      campos.forEach(campo => campo.classList.remove("auto"));
+    }
+
+    function mostrarResultado(texto) {
+      resultado.innerHTML = texto;
+      resultado.style.display = "block";
+    }
+
+    function esconderResultado() {
+      resultado.innerHTML = "";
+      resultado.style.display = "none";
+    }
+
+    function calcular() {
+      limparMarcacoes();
+
+      const vp = lerDinheiro(valorPresente.value);
+      const tx = lerNumero(indice.value);
+      const n = lerNumero(parcelas.value);
+      const vf = lerDinheiro(valorFinal.value);
+
+      const valores = {
+        valorPresente: vp,
+        indice: tx,
+        parcelas: n,
+        valorFinal: vf
+      };
+
+      const vazios = Object.keys(valores).filter(campo => valores[campo] === null);
+
+      if (vazios.length > 1) {
+        esconderResultado();
+        return;
+      }
+
+      let campoParaCalcular = null;
+
+      if (vazios.length === 1) {
+        campoParaCalcular = vazios[0];
+      } else if (vazios.length === 0 && ultimoCampoCalculado) {
+        campoParaCalcular = ultimoCampoCalculado;
+      } else {
+        mostrarResultado("Para calcular automaticamente, deixe um campo vazio.");
+        return;
+      }
+
+      const taxa = tx !== null ? tx / 100 : null;
+
+      try {
+        if (campoParaCalcular === "valorFinal") {
+          if (vp === null || taxa === null || n === null) return;
+
+          const calculado = vp * Math.pow(1 + taxa, n);
+
+          preencherCampo(valorFinal, formatarMoeda(calculado));
+          mostrarResultado("Valor final calculado: R$ " + formatarMoeda(calculado));
+        }
+
+        if (campoParaCalcular === "valorPresente") {
+          if (vf === null || taxa === null || n === null) return;
+
+          const calculado = vf / Math.pow(1 + taxa, n);
+
+          preencherCampo(valorPresente, formatarMoeda(calculado));
+          mostrarResultado("Valor presente calculado: R$ " + formatarMoeda(calculado));
+        }
+
+        if (campoParaCalcular === "indice") {
+          if (vp === null || vf === null || n === null || vp <= 0 || vf <= 0 || n <= 0) {
+            mostrarResultado("Para calcular o índice, os outros valores precisam ser maiores que zero.");
+            return;
+          }
+
+          const calculado = Math.pow(vf / vp, 1 / n) - 1;
+          const percentual = calculado * 100;
+
+          preencherCampo(indice, formatarNumero(percentual, 2, 4));
+          mostrarResultado("Índice calculado: " + formatarNumero(percentual, 2, 4) + "% ao mês");
+        }
+
+        if (campoParaCalcular === "parcelas") {
+          if (vp === null || vf === null || taxa === null || vp <= 0 || vf <= 0 || taxa <= 0) {
+            mostrarResultado("Para calcular parcelas, os outros valores precisam ser válidos.");
+            return;
+          }
+
+          const calculado = Math.log(vf / vp) / Math.log(1 + taxa);
+
+          preencherCampo(parcelas, formatarNumero(calculado, 2, 2));
+          mostrarResultado("Número de parcelas calculado: " + formatarNumero(calculado, 2, 2));
+        }
+
+      } catch (erro) {
+        mostrarResultado("Não foi possível calcular. Verifique os valores informados.");
+      }
+    }
+
+    function limparTudo() {
+      valorPresente.value = "";
+      indice.value = "";
+      parcelas.value = "";
+      valorFinal.value = "";
+      ultimoCampoCalculado = null;
+      limparMarcacoes();
+      esconderResultado();
+    }
+  </script>
+
+  <!-- PWA: registra o service worker para funcionar offline -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+  </script>
+
+</body>
+</html>
